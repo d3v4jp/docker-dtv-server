@@ -1,3 +1,9 @@
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+
 services:
   mirakurun:
     image: mirakurun
