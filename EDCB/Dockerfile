@@ -28,7 +28,7 @@ RUN make -j "$(nproc)" && \
 
 # EDCB Material WebUIのインストール
 WORKDIR /tmp
-RUN git clone --depth=1 https://github.com/EMWUI/EDCB_Material_WebUI.git
+RUN git clone --depth=1 -b EMWUI https://github.com/EMWUI/EDCB_Material_WebUI.git
 WORKDIR /tmp/EDCB_Material_WebUI
 RUN cp -r HttpPublic /var/local/edcb/ && \
     cp -r Setting /var/local/edcb/
