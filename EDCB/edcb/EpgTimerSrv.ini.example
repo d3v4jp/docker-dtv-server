@@ -13,6 +13,7 @@ TimeSync=0
 AutoDelRecInfo=0
 AutoDelRecInfoNum=100
 TSExt=.ts
+CompatFlags=128
 [TVTEST]
 Num=1
 0=BonDriver_LinuxMirakc.so
