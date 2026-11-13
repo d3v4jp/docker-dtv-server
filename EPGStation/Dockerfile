@@ -11,3 +11,8 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         ffmpeg; \
     rm -rf /var/lib/apt/lists/*
+
+# ログ設定ファイル (*LogConfig.yml) が無いと「log file is not found」で起動できない
+# compose.yaml では config.yml と tsreplace.sh だけをマウントするので、イメージ内のサンプルから作っておく
+RUN cd /app/config \
+ && for f in *LogConfig.sample.yml; do cp "$f" "${f%.sample.yml}.yml"; done
