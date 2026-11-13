@@ -138,3 +138,56 @@ services:
     #         - driver: nvidia
     #           count: all
     #           capabilities: [compute, utility, video]   # KonomiTV 公式の docker-compose.example.yaml と同じ
+
+  epgstation_db:
+    image: mariadb:12.3
+    container_name: EPGStation_DB
+    # ホストのユーザーとして動かし、./EPGStation/db のファイルの所有者をホストのユーザーにする
+    # UID / GID が 1000 以外なら書き換える (`id -u` / `id -g` で確認)
+    user: "1000:1000"
+    restart: always
+    # compose のネットワーク内だけで使う (ホストには公開しない)
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --performance_schema=OFF
+      --expire_logs_days=1
+    environment:
+      MYSQL_USER: epgstation
+      MYSQL_PASSWORD: epgstation
+      MYSQL_ROOT_PASSWORD: epgstation
+      MYSQL_DATABASE: epgstation
+      TZ: "Asia/Tokyo"
+    volumes:
+      - ./EPGStation/db:/var/lib/mysql
+
+  epgstation:
+    image: epgstation
+    container_name: EPGStation
+    # ホストのユーザーとして動かし、録画ファイル・サムネイル・ログの所有者をホストのユーザーにする
+    # UID / GID が 1000 以外なら書き換える (`id -u` / `id -g` で確認)
+    user: "1000:1000"
+    build:
+      context: ./EPGStation
+    depends_on:
+      mirakurun_init:
+        condition: service_completed_successfully
+      epgstation_db:
+        condition: service_started
+    restart: always
+    ports:
+      - "8888:8888"   # http://<ホスト>:8888/ (Socket.IO も同じポート)
+    environment:
+      TZ: "Asia/Tokyo"
+    volumes:
+      - ./EPGStation/config/config.yml:/app/config/config.yml
+      - ./EPGStation/config/tsreplace.sh:/app/config/tsreplace.sh:ro
+      - ./EPGStation/data:/app/data
+      - ./EPGStation/thumbnail:/app/thumbnail
+      - ./EPGStation/logs:/app/logs
+      - ./EPGStation/recorded:/recorded   # ts/ と encoded/ を作る
+    logging:
+      driver: json-file
+      options:
+        max-file: "1"
+        max-size: 10m

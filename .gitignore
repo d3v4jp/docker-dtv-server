@@ -11,3 +11,17 @@
 !/EDCB/edcb/Setting/.gitkeep
 /EDCB/record/*
 !/EDCB/record/.gitkeep
+
+/EPGStation/config/config.yml
+/EPGStation/db/*
+!/EPGStation/db/.gitkeep
+/EPGStation/logs/*
+!/EPGStation/logs/.gitkeep
+/EPGStation/thumbnail/*
+!/EPGStation/thumbnail/.gitkeep
+/EPGStation/data/*
+!/EPGStation/data/.gitkeep
+/EPGStation/recorded/ts/*
+!/EPGStation/recorded/ts/.gitkeep
+/EPGStation/recorded/encoded/*
+!/EPGStation/recorded/encoded/.gitkeep
