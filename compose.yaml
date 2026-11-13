@@ -124,4 +124,17 @@ services:
         source: '/'
         target: '/host-rootfs/'
     devices:
-      - '/dev/dri/:/dev/dri/'
+      # Intel iGPU (UHD P630) のレンダーノードだけを渡す。Quadro (nouveau) は渡さない
+      # PCI アドレスは `ls -l /dev/dri/by-path/` で確認 (Intel iGPU は通常 0000:00:02.0)
+      # パスに ":" が入るので長い書き方にする
+      - source: /dev/dri/by-path/pci-0000:00:02.0-render
+        target: /dev/dri/renderD128
+        permissions: rwm
+    # KonomiTV で NVEncC を使うときはコメントを外す (ホストに NVIDIA ドライバと NVIDIA Container Toolkit が必要)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [compute, utility, video]   # KonomiTV 公式の docker-compose.example.yaml と同じ
