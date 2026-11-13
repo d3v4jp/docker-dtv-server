@@ -4,14 +4,6 @@
 /mirakurun/data/*
 !/mirakurun/data/.gitkeep
 
-/EDCB/edcb/Common.ini
-/EDCB/edcb/EpgDataCap_Bon.ini
-/EDCB/edcb/EpgTimerSrv.ini
-/EDCB/edcb/Setting/*
-!/EDCB/edcb/Setting/.gitkeep
-/EDCB/record/*
-!/EDCB/record/.gitkeep
-
 /EPGStation/config/config.yml
 /EPGStation/db/*
 !/EPGStation/db/.gitkeep

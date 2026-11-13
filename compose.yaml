@@ -45,59 +45,6 @@ services:
     network_mode: host
     command: [ "sh", "-c", "until wget -nv --spider http://localhost:40772/api/status; do sleep 3; done" ]
 
-  edcb_chscan:
-    image: edcb
-    container_name: EDCB_ChScan
-    build:
-      context: ./EDCB
-    depends_on:
-      mirakurun_init:
-        condition: service_completed_successfully
-    network_mode: host
-    volumes:
-      - type: bind
-        source: "./EDCB/edcb/Common.ini"
-        target: "/var/local/edcb/Common.ini"
-      - type: bind
-        source: "./EDCB/edcb/EpgDataCap_Bon.ini"
-        target: "/var/local/edcb/EpgDataCap_Bon.ini"
-      - type: bind
-        source: "./EDCB/edcb/EpgTimerSrv.ini"
-        target: "/var/local/edcb/EpgTimerSrv.ini"
-      - type: bind
-        source: "./EDCB/edcb/Setting"
-        target: "/var/local/edcb/Setting"
-
-  edcb:
-    image: edcb
-    container_name: EDCB
-    build:
-      context: ./EDCB
-    depends_on:
-      mirakurun_init:
-        condition: service_completed_successfully
-      edcb_chscan:
-        condition: service_completed_successfully
-    restart: always
-    network_mode: host
-    command: /usr/local/bin/EpgTimerSrv
-    volumes:
-      - type: bind
-        source: "./EDCB/edcb/Common.ini"
-        target: "/var/local/edcb/Common.ini"
-      - type: bind
-        source: "./EDCB/edcb/EpgDataCap_Bon.ini"
-        target: "/var/local/edcb/EpgDataCap_Bon.ini"
-      - type: bind
-        source: "./EDCB/edcb/EpgTimerSrv.ini"
-        target: "/var/local/edcb/EpgTimerSrv.ini"
-      - type: bind
-        source: "./EDCB/edcb/Setting"
-        target: "/var/local/edcb/Setting"
-      - type: bind
-        source: "./EDCB/record"
-        target: "/record"
-
   konomitv:
     image: konomitv
     container_name: KonomiTV
@@ -106,8 +53,6 @@ services:
     depends_on:
       mirakurun_init:
         condition: service_completed_successfully
-      edcb:
-        condition: service_started
     restart: always
     network_mode: host
     volumes:
