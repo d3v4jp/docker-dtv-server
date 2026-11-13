@@ -75,9 +75,11 @@ encodeProcessNum: 4
 concurrentEncodeNum: 1
 # 待機中のエンコードを開始しない時間帯。使うときは start・end の行もコメントを外す
 # （値の無い encodeSuspendTimes: だけを残すと起動に失敗する。使わないときは項目ごと消すか [] を書く）
-# encodeSuspendTimes:
-#     - start: '18:00'
-#       end: '24:00'
+# KonomiTV でリアルタイム視聴する時間帯 (18:00〜26:00) は iGPU を空けておく
+#   ※ 実行中のエンコードは止まらないので、開始は 30 分早めにしてある
+encodeSuspendTimes:
+    - start: '17:30'
+      end: '02:00'
 # 再起動で中断されたエンコードの出力途中のファイルを、再起動後に削除するか（既定 true。残すときは false）
 # encodeRemoveInterruptedOutput: true
 # tsreplace で映像だけを差し替える。録画ルールや手動エンコードで、ここに並べた中から選べる
