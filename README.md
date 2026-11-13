@@ -56,7 +56,7 @@ git submodule update --init --recursive
 cp EPGStation/config/config.yml.example EPGStation/config/config.yml
 ```
 
-録画した元のTSは`EPGStation/recorded/ts`に、tsreplaceで映像だけをHEVCに差し替えたTSは`EPGStation/recorded/encoded`に保存されます。
+録画した元のTSは`EPGStation/recorded/ts`に、tsreplaceで映像だけを圧縮したTSは`EPGStation/recorded/encoded`に保存されます。
 
 エンコードは既定でIntel iGPU (QSV) を使います。
 
@@ -84,7 +84,7 @@ iGPUのPCIアドレスが異なる場合は、`ls -l /dev/dri/by-path/`で確認
 `KonomiTV`ディレクトリ以下にconfig.yamlを作成してください。
 
 - バックエンドはMirakurun (`http://127.0.0.1:40772/`) を指定します。
-- 録画フォルダには`EPGStation/recorded/encoded`の絶対パスを登録します。
+- 録画フォルダの指定方法は「EPGStationとKonomiTVの録画フォルダ」を参照してください。
 
 ### チャンネルスキャン
 
@@ -136,6 +136,38 @@ docker compose up -d
 KonomiTVのURLの仕組みについては、[KonomiTVのREADME](https://github.com/tsukumijima/KonomiTV#httpsaa-bb-cc-ddlocalkonomitv7000-%E3%81%AE-url-%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)を参照してください。
 
 チャンネルスキャンをした場合は、MirakurunのEPG更新を待ってからEPGStationにアクセスしてください。
+
+#### EPGStationとKonomiTVの録画フォルダ
+
+EPGStationの録画フォルダは以下のとおりです。
+
+- `ts`：録画した元のTS。ホストの`EPGStation/recorded/ts`（コンテナ内は`/recorded/ts`）に保存されます。
+- `encoded`：tsreplaceで圧縮したTS。ホストの`EPGStation/recorded/encoded`（コンテナ内は`/recorded/encoded`）に保存されます。
+
+KonomiTVでは、`KonomiTV/config.yaml`の`video`→`recorded_folders`に`encoded`フォルダを指定します。
+パスはホスト側の絶対パスをそのまま書いてください。Docker上ではKonomiTVが自動で`/host-rootfs`を付けて読み込みます。
+
+例えばリポジトリを`/home/user/docker-dtv-server`に置いている場合は、以下のようになります。
+
+```yaml
+video:
+    recorded_folders: [
+        '/home/user/docker-dtv-server/EPGStation/recorded/encoded',
+    ]
+```
+
+#### エンコード予約の注意(課題点)
+
+エンコードの保存先を指定しないと、圧縮後のファイルも`ts`フォルダに保存されます。
+この場合、KonomiTVの録画番組一覧には表示されません。
+
+エンコードする番組は、以下のように予約してください。
+
+- ルールで録画する場合は、「エンコード1」でモードを選び、保存先（directory1）に`encoded`を指定します。
+- 単発で録画する場合は、番組詳細予約から予約し、同じく保存先に`encoded`を指定します。
+- 番組表からの簡易予約では保存先を選べないので、TSのまま録画する番組に使ってください。
+
+保存先を指定し忘れた場合は、EPGStationの録画詳細から保存先を`encoded`にしてエンコードし直してください。
 
 ## 紹介記事
 
