@@ -80,11 +80,30 @@ concurrentEncodeNum: 1
 #       end: '24:00'
 # 再起動で中断されたエンコードの出力途中のファイルを、再起動後に削除するか（既定 true。残すときは false）
 # encodeRemoveInterruptedOutput: true
+# tsreplace で映像だけを差し替える。録画ルールや手動エンコードで、ここに並べた中から選べる
+#   使いたいものだけコメントを外す。QSV と NVENC は片方だけでも両方同時でも使える
+#   QSV  : Intel iGPU (VA-API 経由)。compose.yaml で /dev/dri を渡している前提
+#   NVENC: NVIDIA GPU。ホストに NVIDIA ドライバと NVIDIA Container Toolkit を入れ、
+#          compose.yaml の epgstation にある deploy: のコメントを外す
 encode:
-    - name: H.264
-      cmd: '%NODE% %ROOT%/config/enc.js'
-      suffix: .mp4
+    # --- Intel iGPU (QSV) ---
+    - name: HEVC (QSV)
+      cmd: '/bin/bash %ROOT%/config/tsreplace.sh hevc qsv'
+      suffix: .ts
       rate: 4.0
+    # - name: H.264 (QSV)
+    #   cmd: '/bin/bash %ROOT%/config/tsreplace.sh h264 qsv'
+    #   suffix: .ts
+    #   rate: 4.0
+    # --- NVIDIA GPU (NVENC) ---
+    # - name: HEVC (NVENC)
+    #   cmd: '/bin/bash %ROOT%/config/tsreplace.sh hevc nvenc'
+    #   suffix: .ts
+    #   rate: 4.0
+    # - name: H.264 (NVENC)
+    #   cmd: '/bin/bash %ROOT%/config/tsreplace.sh h264 nvenc'
+    #   suffix: .ts
+    #   rate: 4.0
 
 urlscheme:
     m2ts:

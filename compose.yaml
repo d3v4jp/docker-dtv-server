@@ -167,8 +167,15 @@ services:
     # ホストのユーザーとして動かし、録画ファイル・サムネイル・ログの所有者をホストのユーザーにする
     # UID / GID が 1000 以外なら書き換える (`id -u` / `id -g` で確認)
     user: "1000:1000"
+    # iGPU のレンダーノードを使うため、ホストの render グループの GID を足す (`getent group render` で確認)
+    group_add:
+      - "991"
     build:
       context: ./EPGStation
+      args:
+        # tsreplace のバージョンとターゲット CPU。.env か環境変数で上書きできる
+        TSREPLACE_VERSION: ${TSREPLACE_VERSION:-0.22}
+        TSREPLACE_ARCH: ${TSREPLACE_ARCH:-amd64}
     depends_on:
       mirakurun_init:
         condition: service_completed_successfully
@@ -186,6 +193,21 @@ services:
       - ./EPGStation/thumbnail:/app/thumbnail
       - ./EPGStation/logs:/app/logs
       - ./EPGStation/recorded:/recorded   # ts/ と encoded/ を作る
+    devices:
+      # Intel iGPU (UHD P630) のレンダーノードだけを渡す。Quadro (nouveau) は渡さない
+      # PCI アドレスは `ls -l /dev/dri/by-path/` で確認 (Intel iGPU は通常 0000:00:02.0)
+      # パスに ":" が入るので長い書き方にする
+      - source: /dev/dri/by-path/pci-0000:00:02.0-render
+        target: /dev/dri/renderD128
+        permissions: rwm
+    # NVENC を使うときはコメントを外す (ホストに NVIDIA ドライバと NVIDIA Container Toolkit が必要)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu, video]
     logging:
       driver: json-file
       options:
