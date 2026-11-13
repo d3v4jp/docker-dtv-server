@@ -63,6 +63,25 @@ cp EPGStation/config/config.yml.example EPGStation/config/config.yml
 - H.264やNVENCを使う場合は、config.ymlの`encode`の項目でコメントを外してください。
 - NVENCを使う場合は、ホストにNVIDIAドライバとNVIDIA Container Toolkitを入れ、compose.yamlの`deploy`のコメントも外してください。
 
+##### エンコードしない時間帯の設定について
+
+EPGStationのエンコードは、KonomiTVでリアルタイム視聴する時間帯を避けて、17:30〜翌2:00には開始しないように設定しています。
+この時間帯にもエンコードしたい場合は、この設定を入れたコミットをリバートしてください。
+
+```bash
+git revert $(git log --format=%H -1 --grep='リアルタイム視聴する時間帯はエンコードを始めない')
+```
+
+リバートで元に戻るのは`config.yml.example`だけです。
+`config.yml`を作成済みの場合は、もう一度コピーし直すか、`config.yml`から`encodeSuspendTimes`の項目を削除してください。
+その後、EPGStationを再起動すると反映されます。
+
+```bash
+docker compose restart epgstation
+```
+
+時間帯だけを変えたい場合は、リバートせずに`config.yml`の`start`と`end`を書き換えてください。
+
 #### ユーザーとGPUの設定
 
 EPGStationとMariaDBは、録画ファイルやDBのファイルがrootの所有にならないよう、ホストのユーザーとして動かします。
