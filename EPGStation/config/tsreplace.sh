@@ -33,7 +33,28 @@ case "$ENCODER" in
     VAAPI_DEVICE="${VAAPI_DEVICE:-/dev/dri/renderD128}"
     HW_OPTS=(-vaapi_device "$VAAPI_DEVICE")
     VF='format=nv12,hwupload,deinterlace_vaapi=rate=frame'
-    VOPTS=(-c:v "${CODEC}_vaapi" -rc_mode CQP -qp "$QP")
+    # コーデックと映像の幅で設定を分ける (1920: BS などのフルHD / それ以外: 地デジなど)
+    WIDTH="$("${FFPROBE:-ffprobe}" -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$INPUT" 2>/dev/null | head -n 1 || true)"
+    case "$CODEC" in
+      hevc)
+        if [ "${WIDTH:-0}" -ge 1920 ]; then
+          # BS/CS (1920x1080)
+          VOPTS=(-c:v hevc_vaapi -rc_mode CQP -qp "$QP")
+        else
+          # GR (地デジ 1440x1080。1440x1080 の BS/CS もこちら)
+          VOPTS=(-c:v hevc_vaapi -rc_mode CQP -qp "$QP")
+        fi
+        ;;
+      h264)
+        if [ "${WIDTH:-0}" -ge 1920 ]; then
+          # BS/CS (1920x1080)
+          VOPTS=(-c:v h264_vaapi -rc_mode CQP -qp "$QP")
+        else
+          # GR (地デジ 1440x1080。1440x1080 の BS/CS もこちら)
+          VOPTS=(-c:v h264_vaapi -rc_mode CQP -qp "$QP")
+        fi
+        ;;
+    esac
     ;;
   nvenc)
     HW_OPTS=()
