@@ -86,10 +86,21 @@ trap cleanup EXIT
 # 番組の長さ (秒)。取れないときは進捗を出さずにエンコードだけする
 DURATION="$("${FFPROBE:-ffprobe}" -v error -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null || true)"
 
+# 元の TS の容量 (圧縮率の計算に使う)
+IN_BYTES="$(stat -c %s "$INPUT" 2>/dev/null || echo 0)"
+
 # 2 秒ごとに -progress の最新値を読み、EPGStation 向けの進捗 JSON を 1 行書く
+# log の例: ETR:00:02.57 1.86x 56fps CR:44%(0.53/1.20GB)
+#   (画面では EPGStation が percent から作った「45%」が先頭に付き、
+#    「45% ETR:00:02.57 1.86x 56fps CR:44%(0.53/1.20GB)」と表示される)
+#   ETR: 推定残り時間 (時:分.秒)。(番組の長さ - 処理済みの時間) / speed で求める
+#   CR : 圧縮率 = 出力の推定最終容量 / 元の容量。カッコ内は (推定最終容量/元の容量)
+#        推定最終容量は「書き出し中の .part の容量 / 進捗」。序盤 3% までは値がぶれるので出さない
+# EPGStation は percent を進捗バーと先頭の「nn%」に使うので、log には進捗率を入れない
 report_progress() {
   while sleep 2; do
-    awk -F= -v d="$DURATION" '
+    OUT_BYTES="$(stat -c %s "$TMP" 2>/dev/null || echo 0)"
+    awk -F= -v d="$DURATION" -v ib="$IN_BYTES" -v ob="$OUT_BYTES" '
       /^out_time_us=/ { t = $2 }
       /^fps=/         { f = $2 }
       /^speed=/       { s = $2 }
@@ -97,7 +108,23 @@ report_progress() {
         if (t == "" || t == "N/A" || t + 0 < 0) exit
         p = t / 1000000 / d
         if (p > 1) p = 1
-        printf "{\"type\":\"progress\",\"percent\":%.4f,\"log\":\"fps=%s speed=%s\"}\n", p, f, s
+        sp = s + 0
+        if (sp > 0) {
+          r = int((d - t / 1000000) / sp)
+          if (r < 0) r = 0
+          msg = sprintf("ETR:%02d:%02d.%02d", int(r / 3600), int(r % 3600 / 60), r % 60)
+          msg = msg sprintf(" %.2fx", sp)
+        } else {
+          msg = "ETR:--:--.--"
+        }
+        msg = msg sprintf(" %dfps", int(f + 0.5))
+        if (p >= 0.03 && ib > 0 && ob > 0) {
+          est = ob / p
+          msg = msg sprintf(" CR:%d%%(%.2f/%.2fGB)", int(est / ib * 100 + 0.5), est / 1073741824, ib / 1073741824)
+        } else {
+          msg = msg " CR:--"
+        }
+        printf "{\"type\":\"progress\",\"percent\":%.4f,\"log\":\"%s\"}\n", p, msg
       }' "$PROG" || true
   done
 }
