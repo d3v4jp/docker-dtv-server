@@ -18,15 +18,44 @@ set -euo pipefail
 CODEC="${1:-hevc}"
 ENCODER="${2:-qsv}"
 
-# QP は小さいほど高画質・大容量
+# 品質値 (NVENC は QP、VA-API の H.264 は QVBR の品質値)。小さいほど高画質・大容量 (VA-API の HEVC は VBR のため使わない)
 case "$CODEC" in
-  hevc) QP="${HEVC_QP:-25}" ;;   # 目安 23〜28
-  h264) QP="${H264_QP:-23}" ;;   # 目安 20〜26 (HEVC より容量は大きくなる)
+  hevc) QP="${HEVC_QP:-23}" ;;   # 目安 20〜24
+  h264) QP="${H264_QP:-21}" ;;   # 目安 18〜23 (HEVC より容量は大きくなる)
   *)
     echo "unknown codec: $CODEC (hevc or h264)" >&2
     exit 1
     ;;
 esac
+
+# 番組の長さ (秒)。取れないときは進捗を出さず、ビットレートも下の固定値のままエンコードする
+DURATION="$("${FFPROBE:-ffprobe}" -v error -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null || true)"
+
+# 元の TS の容量 (圧縮率と、元のビットレートの計算に使う)
+IN_BYTES="$(stat -c %s "$INPUT" 2>/dev/null || echo 0)"
+
+# 元の TS 全体 (映像 + 音声 + データ放送) のビットレート [kbps] = 容量 / 番組の長さ。求められないときは 0
+SRC_KBPS="$(awk -v b="$IN_BYTES" -v d="$DURATION" 'BEGIN { if (b + 0 > 0 && d + 0 > 0) printf "%d", b * 8 / d / 1000; else print 0 }')"
+
+# 目標ビットレートを「設定値」と「元のビットレート × 割合」の小さいほうにする (VA-API)
+#   地デジや BS は元が 15Mbps 前後あるので設定値のまま。元が 7〜8Mbps の CS などは、
+#   設定値のままだとほとんど縮まないので、元のビットレートに合わせて下げる
+#   割合は元の TS 全体に対する映像の目標 [%]。H.264 は HEVC より圧縮効率が低いので高めにする
+HEVC_RATIO="${HEVC_RATIO:-60}"
+H264_RATIO="${H264_RATIO:-80}"
+MIN_KBPS="${MIN_KBPS:-1500}"   # これより下には下げない (番組の長さを読み違えたときの保険)
+rate_opts() {   # rate_opts <目標の設定値 kbps> <上限の設定値 kbps> <割合 %>  → RATE_OPTS に入れる
+  local tgt="$1" max="$2" pct="$3" t="$1"
+  if [ "$SRC_KBPS" -gt 0 ]; then
+    t=$(( SRC_KBPS * pct / 100 ))
+    if [ "$t" -gt "$tgt" ]; then t="$tgt"; fi
+    if [ "$t" -lt "$MIN_KBPS" ]; then t="$MIN_KBPS"; fi
+  fi
+  # 上限は、目標との比を設定値と同じに保つ。バッファは上限の 2 秒分
+  max=$(( max * t / tgt ))
+  RATE_OPTS=(-b:v "${t}k" -maxrate "${max}k" -bufsize "$(( max * 2 ))k")
+  echo "bitrate: source ${SRC_KBPS}k -> target ${t}k / max ${max}k (preset ${tgt}k, ${pct}%)" >&2
+}
 
 case "$ENCODER" in
   qsv|vaapi)
@@ -34,24 +63,29 @@ case "$ENCODER" in
     HW_OPTS=(-vaapi_device "$VAAPI_DEVICE")
     VF='format=nv12,hwupload,deinterlace_vaapi=rate=frame'
     # コーデックと映像の幅で設定を分ける (1920: BS などのフルHD / それ以外: 地デジなど)
+    # rate_opts の引数は、目標と上限の設定値 [kbps]。元のビットレートが低い番組では自動で下がる
     WIDTH="$("${FFPROBE:-ffprobe}" -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$INPUT" 2>/dev/null | head -n 1 || true)"
     case "$CODEC" in
       hevc)
         if [ "${WIDTH:-0}" -ge 1920 ]; then
           # BS/CS (1920x1080)
-          VOPTS=(-c:v hevc_vaapi -rc_mode CQP -qp "$QP")
+          rate_opts 8000 12000 "$HEVC_RATIO"
+          VOPTS=(-c:v hevc_vaapi -rc_mode VBR "${RATE_OPTS[@]}" -compression_level 4 -bf 2)
         else
           # GR (地デジ 1440x1080。1440x1080 の BS/CS もこちら)
-          VOPTS=(-c:v hevc_vaapi -rc_mode CQP -qp "$QP")
+          rate_opts 6000 9000 "$HEVC_RATIO"
+          VOPTS=(-c:v hevc_vaapi -rc_mode VBR "${RATE_OPTS[@]}" -compression_level 4 -bf 2)
         fi
         ;;
       h264)
         if [ "${WIDTH:-0}" -ge 1920 ]; then
           # BS/CS (1920x1080)
-          VOPTS=(-c:v h264_vaapi -rc_mode CQP -qp "$QP")
+          rate_opts 11000 14000 "$H264_RATIO"
+          VOPTS=(-c:v h264_vaapi -rc_mode QVBR -global_quality "$QP" "${RATE_OPTS[@]}" -compression_level 4 -bf 2)
         else
           # GR (地デジ 1440x1080。1440x1080 の BS/CS もこちら)
-          VOPTS=(-c:v h264_vaapi -rc_mode CQP -qp "$QP")
+          rate_opts 8000 10000 "$H264_RATIO"
+          VOPTS=(-c:v h264_vaapi -rc_mode QVBR -global_quality "$QP" "${RATE_OPTS[@]}" -compression_level 4 -bf 2)
         fi
         ;;
     esac
@@ -82,12 +116,6 @@ cleanup() {
   rm -f "$PROG"
 }
 trap cleanup EXIT
-
-# 番組の長さ (秒)。取れないときは進捗を出さずにエンコードだけする
-DURATION="$("${FFPROBE:-ffprobe}" -v error -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null || true)"
-
-# 元の TS の容量 (圧縮率の計算に使う)
-IN_BYTES="$(stat -c %s "$INPUT" 2>/dev/null || echo 0)"
 
 # 2 秒ごとに -progress の最新値を読み、EPGStation 向けの進捗 JSON を 1 行書く
 # log の例: ETR:20m12s 1.95x CR:53%(3.3/6.2GB)
